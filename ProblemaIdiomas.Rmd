@@ -1,0 +1,508 @@
+---
+title: "TD2024Trabajo02"
+author: "FEDERICA RUBINO"
+date: "2024-11-22"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+INTRODUCCION
+
+En este análisis, evaluaremos las principales aplicaciones de aprendizaje de idiomas para determinar cuál es la mejor opción para un usuario promedio. Utilizaremos métodos multicriterio como AHP, ELECTRE y PROMETHEE.
+
+Definición del Problema:
+
+- Aplicaciones Evaluadas:
+1. Duolingo
+2. Babbel
+3. Memrise
+4. Busuu
+
+Criterios de Evaluación:
+
+Costo de la suscripción (€/mes): precio por mes de la suscripción al plan premium adquirida por un año completo, ya que todas estas aplicaciones tienen un plan estándar que es gratuito pero lleno de publicidad. (Minimizar)
+Cantidad de idiomas disponibles: Número total de idiomas que ofrece la aplicación. (Maximizar)
+Método de enseñanza: Evaluación cualitativa basada en la estructura y eficacia del método. (Maximizar)
+Reseñas de los usuarios (promedio 1-5): Calificación promedio en tiendas de aplicaciones. (Maximizar)
+Características adicionales: Presencia de funcionalidades como ejercicios de pronunciación, reconocimiento de voz, etc. (Maximizar)
+
+
+La tabla de datos inicial es la siguiente:
+
+| Criterio                   | Duolingo | Babbel   | Memrise    | Busuu
+
+| Costo (€/mes)              | 6.99     | 5.99     | 8.99       | 5.83  
+
+| Cantidad idiomas           | 37       | 14       | 19         | 14       
+
+| Método de enseñanza        | 4.5      | 4.8      | 4.0        | 4.6   
+
+| Reseñas de usuarios (Media)| 4.7      | 4.6      | 4.6        | 4.6  
+
+| Características adicionales| 3        | 5        | 4          | 5 
+
+
+```{r}
+library(htmltools)
+library(shape)
+source("teoriadecision_funciones_multicriterio.R")
+source("teoriadecision_funciones_multicriterio_diagram.R")
+source("teoriadecision_funciones_multicriterio_utiles.R")
+source("teoriadecision_funciones_incertidumbre.R")
+```
+
+```{r}
+Xmatrizdecision <- multicriterio.crea.matrizdecision(
+  c(6.99, 37, 4.5, 4.7, 3,    # Duolingo
+    5.99, 14, 4.8, 4.6, 5,    # Babbel
+    8.99, 19, 4.0, 4.6, 4,    # Memrise
+    5.83, 14, 4.6, 4.6, 5),   # Busuu
+  4, 5, 
+  c("Duolingo", "Babbel", "Memrise", "Busuu"),
+  c("Costo (€)", "Idiomas", "Método", "Reseñas", "Características")
+)
+
+criterios <- c("Costo (€)", "Idiomas", "Método", "Reseñas", "Características")
+alternativas <- c("Duolingo", "Babbel", "Memrise", "Busuu")
+
+Xmatrizdecision 
+```
+
+```{r}
+# Normalización por el método Nadir
+normalizzazione_nadir <- function(Xmatrizdecision, tipo_criterio) {
+  vcol.max <- apply(Xmatrizdecision, 2, max)
+  vcol.min <- apply(Xmatrizdecision, 2, min)
+  numfilas <- nrow(Xmatrizdecision)
+  numcolus <- ncol(Xmatrizdecision)
+  m.vcol.min <- matrix(vcol.min, numfilas, numcolus, byrow = TRUE)
+  m.vcol.max <- matrix(vcol.max, numfilas, numcolus, byrow = TRUE)
+  Nueva.X <- matrix(NA, nrow = numfilas, ncol = numcolus)
+  for (j in 1:numcolus) {
+    if (tipo_criterio[j] == "Max") {
+      Nueva.X[, j] <- (Xmatrizdecision[, j] - m.vcol.min[, j]) / (m.vcol.max[, j] - m.vcol.min[, j])
+    } else if (tipo_criterio[j] == "Min") {
+      Nueva.X[, j] <- (m.vcol.max[, j] - Xmatrizdecision[, j]) / (m.vcol.max[, j] - m.vcol.min[, j])
+    }
+  }
+  return(Nueva.X)
+}
+
+
+# Transformación del coste en un criterio a maximizar
+Xmatrizdecision[, "Costo (€)"] <- 1 / Xmatrizdecision[, "Costo (€)"]
+
+# Especifica los tipos de criterios
+tipo_criterio <- c("Max", "Max", "Max", "Max", "Max")
+
+# Normalización por el método Nadir
+matriz_normalizada_nadir <- normalizzazione_nadir(Xmatrizdecision, tipo_criterio)
+colnames(matriz_normalizada_nadir) <- c("Costo (€)", "Idiomas", "Método", "Reseñas", "Características")
+rownames(matriz_normalizada_nadir) <- c("Duolingo", "Babbel", "Memrise", "Busuu")
+
+
+print("Matrice Normalizzata (Metodo Nadir):")
+knitr::kable(matriz_normalizada_nadir, caption = "matriz normalizada por el metodo nadir")
+```
+
+
+## Método AHP
+
+```{r}
+# Matriz de comparación por pares
+
+matriz_pesos_criterios <- matrix(c(
+  1,    3,    3/2,  4,    5,     
+  1/3,  1,    2/3,  3,    4,     
+  2/3,  3/2,  1,    2,    3,     
+  1/4,  1/3,  1/2,  1,    2,     
+  1/5,  1/4,  1/3,  1/2,  1      
+), nrow = 5, byrow = TRUE)
+
+rownames(matriz_pesos_criterios) <- colnames(matriz_pesos_criterios) <- c("Costo", "Idiomas", "Método", "Reseñas", "Características")
+
+# Visualizza la matrice
+
+knitr::kable(matriz_pesos_criterios, caption = "matriz_pesos_criterios")
+```
+
+```{r}
+# Comparacion por el criterio "Costo" (Minimizzare)
+costo <- matrix(c(
+  1,    3,    2,    4,
+  1/3,  1,    0.5,  2,
+  0.5,  2,    1,    3,
+  0.25, 0.5,  0.33, 1
+), nrow = 4, byrow = TRUE)
+rownames(matriz_pesos_criterios) <- colnames(matriz_pesos_criterios) <- c("Costo", "Idiomas", "Método", "Reseñas", "Características")
+
+library(kableExtra)
+kable(costo, caption = "Matriz de Comparación: costo ")
+```
+
+```{r}
+# Comparacion por el criterio "Idiomas" (Maximizzare)
+idiomas <- matrix(c(
+  1,    5,    3,    4,
+  1/5,  1,    0.25, 0.5,
+  1/3,  4,    1,    3,
+  0.25, 2,    1/3,  1
+), nrow = 4, byrow = TRUE)
+rownames(matriz_pesos_criterios) <- colnames(matriz_pesos_criterios) <- c("Costo", "Idiomas", "Método", "Reseñas", "Características")
+kable(idiomas, caption = "Matriz de Comparación: idiomas ")
+```
+
+```{r}
+# Comparacion por el criterio "Método" (Maximizzare)
+metodo <- matrix(c(
+  1,    2,    4,    3,
+  0.5,  1,    2,    1.5,
+  0.25, 0.5,  1,    0.33,
+  1/3,  1/1.5, 3,    1
+), nrow = 4, byrow = TRUE)
+rownames(matriz_pesos_criterios) <- colnames(matriz_pesos_criterios) <- c("Costo", "Idiomas", "Método", "Reseñas", "Características")
+kable(metodo, caption = "Matriz de Comparación: metodo ")
+```
+
+```{r}
+# Comparacion por el criterio "Reseñas" (Maximizzare)
+resenas <- matrix(c(
+  1,    4,    3,    2,
+  0.25, 1,    0.33, 0.5,
+  0.33, 3,    1,    1.5,
+  0.5,  2,    1/1.5, 1
+), nrow = 4, byrow = TRUE)
+rownames(matriz_pesos_criterios) <- colnames(matriz_pesos_criterios) <- c("Costo", "Idiomas", "Método", "Reseñas", "Características")
+kable(resenas, caption = "Matriz de Comparación: resenas ")
+```
+
+```{r}
+# Comparacion por el criterio "Características" (Maximizzare)
+caracteristicas <- matrix(c(
+  1,    1.5,  2,    3,
+  0.67, 1,    0.5,  1.5,
+  0.5,  2,    1,    3,
+  0.33, 0.67, 0.33, 1
+), nrow = 4, byrow = TRUE)
+rownames(matriz_pesos_criterios) <- colnames(matriz_pesos_criterios) <- c("Costo", "Idiomas", "Método", "Reseñas", "Características")
+kable(caracteristicas, caption = "Matriz de Comparación: Características ")
+
+```
+
+
+Identificar el diagrama de jerarquías de este problema de decisión
+    Obtenemos los vectores de la parte superior de cada matriz
+    
+```{r}
+triangular_superior_pro = costo[upper.tri(costo)]
+triangular_superior_pro
+triangular_superior_acc = idiomas[upper.tri(idiomas)]
+triangular_superior_acc
+triangular_superior_cos = metodo[upper.tri(metodo)]
+triangular_superior_cos
+triangular_superior_com = resenas[upper.tri(resenas)]
+triangular_superior_com
+triangular_superior_tam = caracteristicas[upper.tri(caracteristicas)]
+triangular_superior_tam
+
+```
+
+Creamos tablas:
+    ```{r}
+costo2=multicriterio.crea.matrizvaloraciones_mej(triangular_superior_pro, numalternativas = 4,v.nombres.alternativas = alternativas)
+idiomas2=multicriterio.crea.matrizvaloraciones_mej(triangular_superior_acc, numalternativas = 4, v.nombres.alternativas = alternativas)
+metodo2=multicriterio.crea.matrizvaloraciones_mej(triangular_superior_cos, numalternativas = 4, v.nombres.alternativas = alternativas)
+resenas2=multicriterio.crea.matrizvaloraciones_mej(triangular_superior_com, numalternativas = 4, v.nombres.alternativas = alternativas)
+caracteristicas2=multicriterio.crea.matrizvaloraciones_mej(triangular_superior_tam, numalternativas = 4, v.nombres.alternativas = alternativas)
+```
+
+Diagrama:
+```{r}
+tabla1 <- matriz_pesos_criterios
+tabla2 <- array(NA,dim = c(4,4,5)) 
+tabla2[,,1] <- costo2
+tabla2[,,2] <- idiomas2
+tabla2[,,3] <- metodo2
+tabla2[,,4] <- resenas2
+tabla2[,,5] <- caracteristicas2
+dimnames(tabla2)[[1]] <- alternativas
+dimnames(tabla2)[[2]] <- alternativas
+dimnames(tabla2)[[3]] <- criterios
+multicriterio.metodoahp.diagrama(tabla1, tabla2)
+```
+Nivel de criterios (segundo nivel):
+Coste (39,81%): Es el criterio más influyente, destacando el gran peso asignado. Esto refleja que el costo es una prioridad importante en la selección de aplicaciones.
+Idiomas (20,39%): Indica que la variedad de idiomas disponibles es de importancia significativa, pero menor que el costo.
+Método (23,18%): El método de aprendizaje tiene relevancia significativa en el proceso de toma de decisiones.
+Reseñas (10,21%): Las opiniones de los usuarios tienen un peso intermedio, contribuyendo moderadamente a la decisión.
+Características (6,41%): Es el criterio menos influyente, sugiriendo que las características no son determinantes para la elección.
+
+Duolingo:
+Obtiene la puntuación global más alta (0,3348). Este es el resultado de un excelente desempeño en criterios clave como Costo (0.3105), Método (0.4303) y Reseñas (0.3248). Por tanto, es la opción preferida por la mayoría de usuarios.
+Babbel:
+Segundo lugar del ranking con una puntuación global de 0,2485. Destaca en Coste (0,2877) y Características (0,2923), pero tiene valoraciones inferiores en Idiomas y Método.
+Busuu:
+Está cerca de Babbel con una puntuación global de 0,2427. Es fuerte en Idiomas (0,3039) y Reseñas (0,3309), pero sus puntuaciones en Coste (0,2066) y Método (0,2177) limitan su competitividad.
+Memrise:
+Último del ranking con una puntuación global de 0,174. No destaca en ningún criterio y obtiene las puntuaciones más bajas en Método (0,0883) y Reseñas (0,1848).
+    
+```{r}
+## ponderaciones asociadas a cada criterio manejado.
+
+pesos_ahp <- multicriterio.metodoAHP.variante3.basico(matriz_pesos_criterios)
+sum(pesos_ahp$valoraciones.ahp)
+knitr::kable(pesos_ahp$valoraciones.ahp, caption = "Pesos calculados con AHP")
+```
+Esto implica que el costo es el criterio con mayor peso en la toma de decisiones, mientras el criterio caracteristica es el menos relevante según las comparaciones.
+
+
+Calcular las ponderaciones de las cuatro aplicaciones en función de cada criterio.
+```{r}
+costo3=  multicriterio.metodoAHP.variante3.basico(costo2)
+costo3
+```
+
+
+```{r}
+idiomas3=  multicriterio.metodoAHP.variante3.basico(idiomas2)
+idiomas3
+```
+
+
+```{r}
+metodo3=  multicriterio.metodoAHP.variante3.basico(metodo2)
+metodo3
+```
+
+
+```{r}
+resenas3=  multicriterio.metodoAHP.variante3.basico(resenas2)
+resenas3
+```
+
+```{r}
+caracteristicas3=  multicriterio.metodoAHP.variante3.basico(caracteristicas2)
+caracteristicas3
+```
+
+
+```{r}
+# Verificación de consistencia
+consistencia <- multicriterio.metodoAHP.coef.inconsistencia(matriz_pesos_criterios)
+consistencia
+cat("Coeficiente de inconsistencia corregido:", consistencia$CI.coef.inconsistencia, "\n")
+if (consistencia$CI.coef.inconsistencia > 0.1) {
+  cat("La matrice de comparación NO es consistente. Revisa los juicios.\n")
+} else {
+  cat("La matriz de comparación es consistente.\n")
+}
+```
+El análisis muestra que la consistencia de las comparaciones es aceptable. El coef. de inconsistencia es bajo, el valor de lambda está cerca de 5, lo que indica que las comparaciones realizadas son coherentes.
+
+Determinar la prioridad global de cada aplicacion
+```{r}
+multicriterio.metodoAHP.pesosglobales_entabla(pesos_ahp$valoraciones.ahp,                                               rbind(costo3$valoraciones.ahp,
+                                          idiomas3$valoraciones.ahp,                                                    metodo3$valoraciones.ahp,
+                                          resenas3$valoraciones.ahp,
+                                          caracteristicas3$valoraciones.ahp))
+```
+Como hemos visto en la estructura jerárquica, duolingo tiene el peso global más alto, seguido de babbel busuu y memrise.
+
+
+## Método ELECTRE
+
+Criterios y Propuesta de Pesos
+Costo de la suscripción: este criterio es importante porque afecta directamente la accesibilidad económica para los usuarios. Propuesta de peso: 0.3 (30%)
+Cantidad de idiomas disponibles: un número mayor de idiomas puede atraer a más usuarios y permite mayor flexibilidad. Propuesta de peso: 0.2 (20%)
+Método de enseñanza: es clave, ya que la estructura y la calidad del método determinan qué tan efectivo será el aprendizaje. Propuesta de peso: 0.25 (55%)
+Reseñas de los usuarios: refleja la experiencia real de los usuarios y la satisfacción general, pero es subjetivo. Propuesta de peso: 0.15 (15%)
+Características adicionales: las funcionalidades avanzadas (como ejercicios de pronunciación o reconocimiento de voz) añaden valor. Propuesta de peso: 0.1 (10%)
+
+Umbrales de no compensación
+Coste de suscripción mensual (€/mes): 0.4
+Es tolerable una diferencia de hasta 0.4€/mes, ya que representa una pequeña variación respecto al coste total anual.
+2. Número de idiomas disponibles: 6
+Una diferencia de 8 idiomas se considera aceptable, porque la variedad de idiomas en una aplicación suele ser amplia y una diferencia de 6 no afecta la calidad percibida.
+3. Método de enseñanza (puntuación de 1 a 5): 0,25
+la puntuación refleja una evaluación subjetiva, las diferencias más pequeñas son insignificantes, pero las diferencias más grandes pueden indicar mejoras o deficiencias reales en el método.
+4. Opiniones de usuarios (puntuación de 1 a 5): 0,15
+En las opiniones de los usuarios, las variaciones de 0,2 puntos se consideran marginales.
+5. Funciones adicionales: 1
+Las funciones avanzadas (como ejercicios de pronunciación, reconocimiento de voz, etc.) añaden valor a la aplicación. Se considera aceptable una diferencia de 1 característica.
+
+
+```{r}
+# Pesos para ELECTRE
+pesos <- c(0.3, 0.2, 0.25, 0.15, 0.10)
+
+# umbrales de no compensación
+no_se_compensan <- c(0.4, 6, 0.25, 0.15, 1)
+
+alpha_iniziale <- 0.7
+
+
+# Metodo ELECTRE con alpha = 0.7
+electre_1= multicriterio.metodoELECTRE_I(Xmatrizdecision,
+                                         pesos.criterios = pesos,
+                                         nivel.concordancia.minimo.alpha = 0.7,
+                                         no.se.compensan =c(Inf, Inf, Inf, Inf, Inf),
+                                         que.alternativas = T)
+
+# Visualizacion de los risultados
+print(electre_1)
+qgraph::qgraph(electre_1$relacion.dominante)
+
+# Personalizzazione del grafico
+library(qgraph)
+qgraph(
+  electre_1$relacion.dominante,
+  layout = "circle",
+  vsize = 12, 
+  esize = 3, 
+  edge.color = "darkblue",
+  labels = rownames(electre_1$relacion.dominante),
+  label.cex = 1.4, 
+  directed = TRUE
+)
+
+```
+
+Memrise es claramente la alternativa menos favorable,
+Dominado por todas las demás opciones. Lo omitimos en el siguiente gráfico bajando el nivel de aplha a 0,5.
+
+```{r}
+# alpha a 0.5
+electre_reducido = multicriterio.metodoELECTRE_I(Xmatrizdecision,
+                                                 pesos.criterios = pesos,
+                                                 nivel.concordancia.minimo.alpha = 0.5,
+                                                 no.se.compensan =c(Inf, Inf, Inf, Inf, Inf) ,
+                                                 que.alternativas = c(1,2,4))
+electre_reducido
+qgraph::qgraph(electre_reducido$relacion.dominante)
+
+```
+Busuu muestra un comportamiento dominante respecto a las otras alternativas, mientras que Duolingo es la alternativa más débil en este contexto.
+Babbel está en una posición intermedia, dominada por Busuu pero dominante en comparación con Duolingo.
+
+
+## Método PROMETHEE
+
+Coste (€): Rango = max - min → 8,99 - 5,83 = 3,16.
+Idiomas disponibles: Rango = 37 - 14 = 23.
+Método de enseñanza: Rango = 4,8 - 4,0 = 0,8.
+Opiniones de usuarios: Rango = 4,7 - 4,6 = 0,1.
+Características adicionales: Rango = 5 - 3 = 2.
+
+```{r}
+
+# Criteri
+criterios <- c("Costo (€)", "Idiomas", "Método", "Reseñas", "Características")
+
+# Min/Max per ciascun criterio
+min_max <- c("Min", "Max", "Max", "Max", "Max")
+
+# Dati delle alternative
+Duolingo <- c(6.99, 37, 4.5, 4.7, 3)  
+Babbel <- c(5.99, 14, 4.8, 4.6, 5)  
+Memrise <- c(8.99, 19, 4.0, 4.6, 4)  
+Busuu <- c(5.83, 14, 4.6, 4.6, 5)  
+
+# Parametros
+
+# pesos criterios
+p <- c( 0.3, 0.2, 0.25, 0.15, 0.10 )  
+
+# idealidad
+q <- c(0, 1, 1, 1, 1)  
+
+# referencia
+s <- c(3.16, 23, 0.8, 0.1, 2)  # Referenza
+
+# Creazione della tabella
+tabla <- data.frame(
+  "Criterios" = criterios,
+  "Min/Max" = min_max,
+  Duolingo, Babbel, Memrise, Busuu,
+  "Pesos" = p,
+  "Idealidad" = q,
+  "Referencia" = s
+)
+
+# Visualizzazione della tabella
+library(pander)
+pander(tabla)
+```
+
+```{r}
+
+# Definición de funciones de preferencia
+preferencias <- matrix(c(
+  5, 0, 0.3, 3.16,  # Costo: Lineal (Min)
+  5, 1, 0.2, 23,    # Lingue: Lineal (Max)
+  1, 1, 0.25, 0.8,  # Metodo: Usual (Max)
+  1, 1, 0.15, 0.1,  # Recensioni: Usual (Max)
+  1, 1, 0.1, 2      # Funzionalità: Usual (Max)
+), ncol = 4, byrow = TRUE)
+colnames(preferencias) <- c("Tipo", "Idealidad", "Peso", "Soglia")
+print(preferencias)
+
+# Calcular los pesos normalizados para PROMETHEE
+pesos = preferencias[, 3] / sum(preferencias[, 3])
+
+# Metodo PROMETHEE I
+promethee_i <- multicriterio.metodo.promethee_i(
+  Xmatrizdecision,
+  pesos.criterios = pesos,
+  tab.fpref = preferencias
+)
+
+# Risultados
+print(promethee_i)
+
+# Grafico 
+library(qgraph)
+qgraph::qgraph(promethee_i$tablarelacionsupera)
+```
+Babbel (Bbb) emerge como el nodo dominante, pudiendo superar directamente a dos alternativas (Memrise y Busuu) y sin sufrir el dominio de las demás. Esto indica que, según el método ELECTRE I, Babbel es la alternativa preferida. Memrise (Mmr) se encuentra en la posición menos favorable. Está dominado por todas las demás alternativas, lo que sugiere que no cumple con los criterios de comparación de manera tan competitiva como las demás.
+
+```{r}
+# Aplicación del método PROMETHEE II
+promethee_ii = multicriterio.metodo.promethee_ii(Xmatrizdecision, pesos.criterios =pesos,
+tab.fpref = preferencias)
+promethee_ii
+qgraph::qgraph(promethee_ii$tablarelacionsupera)
+```
+A diferencia de PROMETHEE I, que sólo muestra relaciones parciales, este gráfico considera flujos tanto positivos como negativos, lo que permite construir un ranking completo de las alternativas. Todas las flechas apuntan de Duolingo a las otras alternativas, lo que indica que Duolingo tiene el flujo neto más alto y es la mejor alternativa según PROMETHEE II. Babbel solo tiene flechas entrantes de Duolingo, aunque domina tanto a Memrise como a Busuu, se posiciona como una segunda opción válida. Memrise está dominada tanto por Duolingo como por Babbel, pero domina a Busuu, ocupando el tercer lugar. Finalmente Busuu recibe flechas de todas las demás alternativas, indicando que está completamente dominado por Duolingo, Babbel y Memrise.
+
+```{r}
+order(promethee_ii$vflujos.netos,decreasing = T)
+
+```
+como hemos visto en el gráfico podemos confirmar que la mejor opción es Duolingo, seguido de memrise Babbel y finalmente busuu. 
+
+
+CONCLUSIONES
+Resultados:
+Duolingo es el favorito para AHP y PROMETHEE, mientras que Babbel destaca con ELECTRE.
+Memrise resulta ser la opción menos preferida en todos los métodos.
+
+Método AHP 
+Hallazgos clave: Duolingo emerge como la opción preferida con la puntuación general más alta (0,3348), seguida de Babbel (0,2485), Busuu (0,2427) y finalmente Memrise (0,1740).
+Criterios principales: El coste tiene el mayor peso (39,81%), seguido del Método (23,18%) y los Idiomas disponibles (20,39%).
+
+método ELECTRE
+Resultados clave: Babbel fue dominante, superando directamente a dos alternativas (Memrise y Busuu) y sin sufrir dominio. Memrise, por el contrario, se encuentra en la posición menos favorable, dominada por todas las demás alternativas.
+Criterios clave: el método ELECTRE utiliza umbrales de concordancia y discordancia, lo que favorece a Babbel debido a su desempeño consistente en múltiples criterios.
+
+método PROMETHÉE
+Hallazgos clave: Duolingo tiene el mejor flujo neto (0,4795), seguido de Babbel (0,4750). Memrise y Busuu tienen flujos netos negativos, lo que indica una menor preferencia.
+Criterios clave: El costo y las características adicionales fueron factores clave en la clasificación final.
+
+
+FUENTES UTILIZADAS
+
+Las fuentes de donde se extrapolaron los datos son múltiples. Por el costo, cantidad de idiomas y características adicionales utilicé las aplicaciones en estudio analizando cada criterio individualmente. Las opiniones de los usuarios provienen de la App Store, plataforma desde la que es posible descargar estas aplicaciones y que cuenta con las valoraciones y comentarios de los usuarios individuales. Para el método de enseñanza consulté el sitio web techradar, que tiene comparaciones entre aplicaciones de aprendizaje de idiomas que también analizan este criterio.
+
+
+
